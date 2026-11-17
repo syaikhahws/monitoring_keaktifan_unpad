@@ -16,14 +16,82 @@ function badge(status: string) {
   return "bg-red-100 text-red-800";
 }
 
-function EwsTable({ students, onReview }: { students: ScoredStudent[]; onReview: (nim: string) => void }) {
+function EwsTable({
+  students,
+  criteria,
+  onReview,
+}: {
+  students: ScoredStudent[];
+  criteria: Criterion[];
+  onReview: (nim: string) => void;
+}) {
   return (
     <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 px-6 py-4">
-        <div><h2 className="font-bold">Daftar Pantauan Khusus</h2><p className="text-xs text-stone-500">Status ditentukan dari skor keaktifan berdasarkan kriteria aktif.</p></div>
-        <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">{students.length} perlu perhatian</span>
+        <div>
+          <h2 className="font-bold">Daftar Pantauan Khusus</h2>
+          <p className="text-xs text-stone-500">
+            Semua kriteria ditampilkan; hanya kriteria aktif yang dihitung ke dalam skor.
+          </p>
+        </div>
+        <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">
+          {students.length} perlu perhatian
+        </span>
       </div>
-      <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500"><tr><th className="p-4">Mahasiswa</th><th className="p-4">Presensi</th><th className="p-4">Skor</th><th className="p-4">Status</th><th className="p-4 text-right">Tindakan</th></tr></thead><tbody>{students.map((m) => <tr key={m.id} className="border-t border-stone-100"><td className="p-4 font-semibold">{m.nama}<span className="block text-xs font-normal text-stone-500">{m.npm}</span></td><td className="p-4">{m.kehadiran.toFixed(1)}%</td><td className="p-4 font-bold">{m.skor.toFixed(2)}%</td><td className="p-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${badge(m.status)}`}>{m.status}</span></td><td className="p-4 text-right"><button onClick={() => onReview(m.npm)} className="text-xs font-bold text-orange-700 hover:underline">Tinjau</button></td></tr>)}</tbody></table></div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+            <tr>
+              <th className="p-4">Mahasiswa</th>
+              {criteria.map((criterion) => (
+                <th key={criterion.id} className="p-4">
+                  {criterion.name}
+                </th>
+              ))}
+              <th className="p-4">Skor</th>
+              <th className="p-4">Status</th>
+              <th className="p-4 text-right">Tindakan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {students.map((student) => (
+              <tr key={student.id} className="border-t border-stone-100">
+                <td className="p-4 font-semibold">
+                  {student.nama}
+                  <span className="block text-xs font-normal text-stone-500">
+                    {student.npm}
+                  </span>
+                </td>
+                {criteria.map((criterion) => {
+                  const value = student.scores[criterion.criterion_key];
+                  return (
+                    <td key={criterion.id} className="p-4">
+                      {value === null || value === undefined
+                        ? "—"
+                        : `${Number(value).toFixed(1)}%`}
+                    </td>
+                  );
+                })}
+                <td className="p-4 font-bold">{student.skor.toFixed(2)}%</td>
+                <td className="p-4">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${badge(student.status)}`}>
+                    {student.status}
+                  </span>
+                </td>
+                <td className="p-4 text-right">
+                  <button
+                    onClick={() => onReview(student.npm)}
+                    className="text-xs font-bold text-orange-700 hover:underline"
+                  >
+                    Tinjau
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -101,11 +169,11 @@ function DosenDashboardContent() {
           {error && <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</section>}
           {!loading && !error && !course && <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Belum ada mata kuliah yang ditugaskan kepada akun dosen ini. Periksa konfigurasi course pada database.</section>}
           {!loading && !error && course && <>
-            {menu === "ringkasan" && <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[[mode === "pengampu" ? "Kelas diampu" : "Mahasiswa wali", `${course.class_name} · ${daftarSkor.length} mahasiswa`, "text-stone-900"], ["Rata-rata skor", `${rataRata.toFixed(2)}%`, "text-orange-700"], ["Mahasiswa aktif", `${aktif} orang`, "text-emerald-700"], ["Perlu tindak lanjut", `${berisiko.length} orang`, "text-red-700"]].map(([label, value, color]) => <div key={label} className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-stone-500">{label}</p><p className={`mt-2 text-2xl font-extrabold ${color}`}>{value}</p></div>)}</div><section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="font-bold">Komposisi skor aktif</h2><p className="mt-1 text-sm text-stone-600">Bobot kriteria diambil dari database dan dinormalisasi dalam perhitungan.</p></div><button onClick={() => setMenu("bobot")} className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-800">Atur bobot</button></div><div className="mt-6 grid gap-4 sm:grid-cols-3">{activeCriteria.map((criterion) => <div key={criterion.id}><div className="mb-2 flex justify-between text-sm font-semibold"><span>{criterion.name}</span><span>{Number(criterion.weight)}%</span></div><div className="h-3 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${activeCriteria.reduce((sum,item)=>sum+Number(item.weight),0) ? (Number(criterion.weight) / activeCriteria.reduce((sum,item)=>sum+Number(item.weight),0))*100 : 0}%` }} /></div></div>)}</div></section><EwsTable students={berisiko} onReview={(nim) => { setKoreksi(nim); setMenu("kelas"); }} /></>}
+            {menu === "ringkasan" && <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[[mode === "pengampu" ? "Kelas diampu" : "Mahasiswa wali", `${course.class_name} · ${daftarSkor.length} mahasiswa`, "text-stone-900"], ["Rata-rata skor", `${rataRata.toFixed(2)}%`, "text-orange-700"], ["Mahasiswa aktif", `${aktif} orang`, "text-emerald-700"], ["Perlu tindak lanjut", `${berisiko.length} orang`, "text-red-700"]].map(([label, value, color]) => <div key={label} className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-stone-500">{label}</p><p className={`mt-2 text-2xl font-extrabold ${color}`}>{value}</p></div>)}</div><section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="font-bold">Komposisi skor aktif</h2><p className="mt-1 text-sm text-stone-600">Bobot kriteria diambil dari database dan dinormalisasi dalam perhitungan.</p></div><button onClick={() => setMenu("bobot")} className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-800">Atur bobot</button></div><div className="mt-6 grid gap-4 sm:grid-cols-3">{activeCriteria.map((criterion) => <div key={criterion.id}><div className="mb-2 flex justify-between text-sm font-semibold"><span>{criterion.name}</span><span>{Number(criterion.weight)}%</span></div><div className="h-3 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${activeCriteria.reduce((sum,item)=>sum+Number(item.weight),0) ? (Number(criterion.weight) / activeCriteria.reduce((sum,item)=>sum+Number(item.weight),0))*100 : 0}%` }} /></div></div>)}</div></section><EwsTable students={berisiko} criteria={data.criteria} onReview={(nim) => { setKoreksi(nim); setMenu("kelas"); }} /></>}
 
             {menu === "kelas" && <section className="space-y-5"><div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-extrabold">Kelas, QR Presensi, dan Koreksi Kehadiran</h2><p className="mt-1 text-sm text-stone-600">Hanya kelas yang diampu pada periode aktif ditampilkan.</p><div className="mt-5 space-y-3"><div className="rounded-xl border border-stone-200 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold text-orange-700">{course.code} · {course.class_name}</p><h3 className="font-bold">{course.name}</h3><p className="text-xs text-stone-500">{course.schedule || "Jadwal belum diatur"} · {daftarSkor.length} peserta</p></div><button onClick={() => setQrKelas(qrKelas === String(course.id) ? null : String(course.id))} className={`rounded-lg px-3 py-2 text-xs font-bold ${qrKelas === String(course.id) ? "bg-red-600 text-white" : "bg-orange-600 text-white"}`}>{qrKelas === String(course.id) ? "Tutup QR" : "Buat QR"}</button></div>{qrKelas === String(course.id) && <div className="mt-4 flex flex-wrap items-end justify-between gap-4 rounded-xl bg-orange-50 p-4"><div><p className="text-xs font-bold text-orange-800">SESI PRESENSI AKTIF</p><p className="mt-1 text-sm text-stone-700">Token unik dan hitung mundur akan dihubungkan ke API presensi pada tahap backend.</p></div><label className="text-xs font-semibold">Masa berlaku (menit)<input min="1" max="120" value={durasi} onChange={(e) => setDurasi(Number(e.target.value))} type="number" className="mt-1 block w-28 rounded-lg border border-stone-300 px-2 py-2 text-sm" /></label></div>}</div></div></div><section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"><h2 className="font-bold">Daftar hadir & koreksi presensi</h2><p className="mt-1 text-sm text-stone-600">Data presensi berasal dari nilai komponen Presensi pada database.</p><div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-b text-xs uppercase tracking-wide text-stone-500"><tr><th className="p-3">Mahasiswa</th><th className="p-3">Presensi</th><th className="p-3 text-right">Aksi</th></tr></thead><tbody>{daftarSkor.map((student) => <tr key={student.id} className="border-b border-stone-100"><td className="p-3 font-semibold">{student.nama}<span className="block text-xs font-normal text-stone-500">{student.npm}</span></td><td className="p-3">{student.kehadiran.toFixed(1)}%</td><td className="p-3 text-right"><button onClick={() => setKoreksi(student.npm)} className="text-xs font-bold text-orange-700 hover:underline">Koreksi</button></td></tr>)}</tbody></table></div>{koreksi && <form onSubmit={(e) => { e.preventDefault(); setKoreksi(null); }} className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4"><p className="text-sm font-bold">Koreksi untuk {daftarSkor.find((student) => student.npm === koreksi)?.nama}</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><select required className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"><option>Hadir</option><option>Izin</option><option>Sakit</option><option>Alpa</option></select><input required placeholder="Catatan koreksi wajib diisi" className="rounded-lg border border-stone-300 px-3 py-2 text-sm" /></div><div className="mt-3 flex gap-2"><button className="rounded-lg bg-stone-900 px-3 py-2 text-xs font-bold text-white">Simpan koreksi</button><button type="button" onClick={() => setKoreksi(null)} className="rounded-lg border border-stone-300 px-3 py-2 text-xs font-bold">Batal</button></div></form>}</section></section>}
 
-            {menu === "perwalian" && <><div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-extrabold">Matriks Anak Wali & Early Warning System</h2><p className="mt-1 text-sm text-stone-600">Ringkasan mahasiswa yang terdaftar pada mata kuliah ini.</p><div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-emerald-50 p-4"><p className="text-xs font-bold text-emerald-800">AKTIF</p><p className="mt-1 text-2xl font-extrabold">{aktif}</p></div><div className="rounded-xl bg-amber-50 p-4"><p className="text-xs font-bold text-amber-800">PERLU PERHATIAN</p><p className="mt-1 text-2xl font-extrabold">{daftarSkor.filter((student) => student.status === "Perlu Perhatian").length}</p></div><div className="rounded-xl bg-red-50 p-4"><p className="text-xs font-bold text-red-800">TIDAK AKTIF</p><p className="mt-1 text-2xl font-extrabold">{daftarSkor.filter((student) => student.status === "Tidak Aktif").length}</p></div></div></div><EwsTable students={berisiko} onReview={() => undefined} /></>}
+            {menu === "perwalian" && <><div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-extrabold">Matriks Anak Wali & Early Warning System</h2><p className="mt-1 text-sm text-stone-600">Ringkasan mahasiswa yang terdaftar pada mata kuliah ini.</p><div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-emerald-50 p-4"><p className="text-xs font-bold text-emerald-800">AKTIF</p><p className="mt-1 text-2xl font-extrabold">{aktif}</p></div><div className="rounded-xl bg-amber-50 p-4"><p className="text-xs font-bold text-amber-800">PERLU PERHATIAN</p><p className="mt-1 text-2xl font-extrabold">{daftarSkor.filter((student) => student.status === "Perlu Perhatian").length}</p></div><div className="rounded-xl bg-red-50 p-4"><p className="text-xs font-bold text-red-800">TIDAK AKTIF</p><p className="mt-1 text-2xl font-extrabold">{daftarSkor.filter((student) => student.status === "Tidak Aktif").length}</p></div></div></div><EwsTable students={berisiko} criteria={data.criteria} onReview={() => undefined} /></>}
 
             {menu === "bobot" && <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-orange-700">Konfigurasi oleh dosen</p><h2 className="mt-1 text-xl font-extrabold">Bobot Skor Keaktifan per Mata Kuliah</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">Bobot setiap kriteria dapat diubah. Kriteria yang dikecualikan tidak ikut dihitung, tetapi nilai yang tersimpan tetap dipertahankan.</p><div className="mt-5 overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500"><tr><th className="p-3">Nama kriteria</th><th className="p-3">Bobot (%)</th><th className="p-3">Status</th><th className="p-3 text-right">Aksi</th></tr></thead><tbody>{data.criteria.map((criterion) => <tr key={criterion.id} className="border-t border-stone-100"><td className="p-3 font-semibold">{criterion.name}</td><td className="p-3"><input type="number" min="0" max="100" defaultValue={criterion.weight} onBlur={(event) => { const value = Number(event.target.value); if (value !== Number(criterion.weight)) void saveCriterionAction({ action: "weight", criterionId: criterion.id, weight: value }); }} className="w-24 rounded-lg border border-stone-300 px-3 py-2" /></td><td className="p-3">{Number(criterion.is_active) === 1 ? "Dihitung" : "Dikecualikan"}</td><td className="p-3 text-right"><button disabled={actionLoading} onClick={() => void saveCriterionAction({ action: Number(criterion.is_active) === 1 ? "exclude" : "activate", criterionId: criterion.id })} className="rounded-lg border border-stone-300 px-3 py-2 text-xs font-bold disabled:opacity-50">{Number(criterion.is_active) === 1 ? "Exclude" : "Aktifkan"}</button></td></tr>)}</tbody></table></div><div className="mt-6 rounded-xl border border-stone-200 bg-stone-50 p-4"><h3 className="font-bold">Tambah kriteria</h3><div className="mt-3 grid gap-3 sm:grid-cols-[1fr_140px_auto]"><input value={newCriterion} onChange={(event) => setNewCriterion(event.target.value)} maxLength={120} placeholder="Nama kriteria baru" className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm" /><input type="number" min="0" max="100" value={newWeight} onChange={(event) => setNewWeight(event.target.value)} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm" placeholder="Bobot (%)" /><button disabled={actionLoading || !newCriterion.trim()} onClick={async () => { const ok = await saveCriterionAction({ action: "create", name: newCriterion, weight: Number(newWeight) }); if (ok) { setNewCriterion(""); setNewWeight("0"); } }} className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Tambah</button></div></div>{actionError && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}{saved && <p className="mt-3 text-sm font-semibold text-emerald-700">Perubahan kriteria tersimpan di database.</p>}<p className="mt-4 text-xs text-stone-500">Mata kuliah: {course.code} · {course.name} ({course.class_name})</p></section>}
 
