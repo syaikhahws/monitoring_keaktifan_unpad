@@ -200,8 +200,10 @@ function DosenDashboardContent() {
     [bobotDraftList]
   );
   const sisaBobot = Math.max(0, 100 - totalBobotDraft);
-  const sudahPenuh100 = totalBobotDraft >= 100;
+  const melebihi100 = totalBobotDraft > 100;
   const tepat100 = totalBobotDraft === 100;
+  const baruBisaTambah = totalBobotDraft + Number(newWeight || 0) <= 100;
+
   const adaPerubahanDraft = useMemo(() => {
     const awal = data.criteria.filter((c) => c.criterion_key !== "alpa");
     if (awal.length !== bobotDraftList.length) return true;
@@ -212,49 +214,27 @@ function DosenDashboardContent() {
     });
   }, [data.criteria, bobotDraftList]);
 
+  // Biarkan user ketik angka berapa pun (0-100) tanpa dipotong paksa
   const handleUbahBobotDraft = (criterionId: number, raw: string) => {
     setSaved(false);
     setActionError("");
     const num = raw === "" ? 0 : Number(raw);
     const val = Number.isFinite(num) ? Math.max(0, Math.min(100, num)) : 0;
-    setDraftCriteria((prev) => {
-      const target = prev.find((c) => c.id === criterionId);
-      if (!target) return prev;
-      if (Number(target.is_active) === 1) {
-        const lainAktif = prev.reduce(
-          (sum, c) =>
-            c.id !== criterionId && c.criterion_key !== "alpa" && Number(c.is_active) === 1
-              ? sum + Number(c.weight || 0)
-              : sum,
-          0
-        );
-        const maks = Math.max(0, 100 - lainAktif);
-        return prev.map((c) => (c.id === criterionId ? { ...c, weight: Math.min(val, maks) } : c));
-      }
-      return prev.map((c) => (c.id === criterionId ? { ...c, weight: val } : c));
-    });
+    setDraftCriteria((prev) =>
+      prev.map((c) => (c.id === criterionId ? { ...c, weight: val } : c))
+    );
   };
 
+  // Biarkan user toggle Exclude / Aktifkan secara bebas di draft
   const handleToggleDraftStatus = (criterionId: number) => {
     setSaved(false);
     setActionError("");
     setDraftCriteria((prev) =>
-      prev.map((c) => {
-        if (c.id !== criterionId) return c;
-        const nextActive = Number(c.is_active) === 1 ? 0 : 1;
-        if (nextActive === 1) {
-          const lainAktif = prev.reduce(
-            (sum, item) =>
-              item.id !== criterionId && item.criterion_key !== "alpa" && Number(item.is_active) === 1
-                ? sum + Number(item.weight || 0)
-                : sum,
-            0
-          );
-          const maks = Math.max(0, 100 - lainAktif);
-          return { ...c, is_active: 1, weight: Math.min(Number(c.weight || 0), maks) };
-        }
-        return { ...c, is_active: 0 };
-      })
+      prev.map((c) =>
+        c.id === criterionId
+          ? { ...c, is_active: Number(c.is_active) === 1 ? 0 : 1 }
+          : c
+      )
     );
   };
 
@@ -298,24 +278,24 @@ function DosenDashboardContent() {
                       Bobot setiap kriteria dapat diubah hingga total 100%. Kriteria yang dikecualikan tidak ikut dihitung, dan perubahan baru tersimpan permanen setelah menekan tombol <strong>Simpan &amp; Fix Bobot</strong>.
                     </p>
                   </div>
-                  <div className={`rounded-2xl border px-4 py-3 text-right ${tepat100 ? "border-emerald-300 bg-emerald-50 text-emerald-900" : totalBobotDraft > 100 ? "border-red-300 bg-red-50 text-red-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
+                  <div className={`rounded-2xl border px-4 py-3 text-right ${tepat100 ? "border-emerald-300 bg-emerald-50 text-emerald-900" : melebihi100 ? "border-red-300 bg-red-50 text-red-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
                     <p className="text-[11px] font-bold uppercase tracking-wider">Total Bobot Aktif</p>
                     <p className="mt-0.5 text-2xl font-extrabold">{totalBobotDraft}% <span className="text-sm font-semibold opacity-75">/ 100%</span></p>
-                    <p className="mt-0.5 text-xs font-medium">{tepat100 ? "Sudah mencapai 100%" : totalBobotDraft > 100 ? `Kelebihan ${totalBobotDraft - 100}%` : `Sisa kuota: ${sisaBobot}%`}</p>
+                    <p className="mt-0.5 text-xs font-medium">{tepat100 ? "Sudah mencapai 100%" : melebihi100 ? `Kelebihan ${totalBobotDraft - 100}%` : `Sisa kuota: ${sisaBobot}%`}</p>
                   </div>
                 </div>
 
-                {sudahPenuh100 && totalBobotDraft === 100 && (
-                  <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-                    Sudah mencapai 100%, tidak dapat menambahkan bobot. Kurangi bobot kriteria yang ada atau klik Exclude jika ingin menambah bobot baru.
-                  </div>
-                )}
-                {totalBobotDraft > 100 && (
+                {melebihi100 && (
                   <div className="mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
-                    Total bobot melebihi 100% ({totalBobotDraft}%). Kurangi bobot hingga tepat 100% sebelum menyimpan.
+                    Bobot melebihi batas maksimum ({totalBobotDraft}% / 100%). Kurangi bobot hingga tepat 100% agar dapat di-fix.
                   </div>
                 )}
-                {!sudahPenuh100 && (
+                {tepat100 && (
+                  <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+                    Sudah mencapai 100%, tidak dapat menambahkan bobot baru kecuali mengurangi bobot yang ada atau klik Exclude.
+                  </div>
+                )}
+                {!tepat100 && !melebihi100 && (
                   <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">
                     Total bobot saat ini <strong>{totalBobotDraft}%</strong>. Masih tersedia sisa <strong>{sisaBobot}%</strong> untuk mencapai 100%.
                   </div>
@@ -337,7 +317,7 @@ function DosenDashboardContent() {
                               max="100"
                               value={criterion.weight}
                               onChange={(event) => handleUbahBobotDraft(criterion.id, event.target.value)}
-                              className="w-24 rounded-lg border border-stone-300 px-3 py-2"
+                              className={`w-24 rounded-lg border px-3 py-2 ${melebihi100 && Number(criterion.is_active) === 1 ? "border-red-400 bg-red-50/40" : "border-stone-300"}`}
                             />
                           </td>
                           <td className="p-3">{Number(criterion.is_active) === 1 ? "Dihitung" : "Dikecualikan"}</td>
@@ -359,7 +339,11 @@ function DosenDashboardContent() {
 
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
                   <p className="text-xs font-medium text-stone-600">
-                    {adaPerubahanDraft ? "Ada perubahan bobot yang belum di-fix." : "Konfigurasi bobot sudah sesuai dengan database."}
+                    {melebihi100
+                      ? "Tidak dapat menyimpan karena bobot melebihi batas maksimum (100%)."
+                      : adaPerubahanDraft
+                        ? "Ada perubahan bobot yang belum di-fix."
+                        : "Konfigurasi bobot sudah sesuai dengan database."}
                   </p>
                   <div className="flex gap-2">
                     {adaPerubahanDraft && (
@@ -400,36 +384,41 @@ function DosenDashboardContent() {
                   <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_140px_auto]">
                     <input
                       value={newCriterion}
-                      disabled={sudahPenuh100 || actionLoading}
+                      disabled={actionLoading}
                       onChange={(event) => setNewCriterion(event.target.value)}
                       maxLength={120}
-                      placeholder={sudahPenuh100 ? "Sudah 100%, tidak dapat menambah" : "Nama kriteria baru"}
-                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm disabled:bg-stone-100"
+                      placeholder="Nama kriteria baru"
+                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
                     />
                     <input
                       type="number"
                       min="0"
-                      max={sisaBobot}
-                      disabled={sudahPenuh100 || actionLoading}
+                      max="100"
+                      disabled={actionLoading}
                       value={newWeight}
                       onChange={(event) => {
                         const v = Number(event.target.value);
-                        setNewWeight(!Number.isFinite(v) || v < 0 ? "0" : String(Math.min(v, sisaBobot)));
+                        setNewWeight(!Number.isFinite(v) || v < 0 ? "0" : String(Math.min(v, 100)));
                       }}
-                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm disabled:bg-stone-100"
+                      className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
                       placeholder="Bobot (%)"
                     />
                     <button
-                      disabled={actionLoading || sudahPenuh100 || !newCriterion.trim() || Number(newWeight) <= 0 || Number(newWeight) > sisaBobot}
+                      disabled={actionLoading || !newCriterion.trim() || Number(newWeight) <= 0 || !baruBisaTambah}
                       onClick={async () => {
                         const ok = await saveCriterionAction({ action: "create", name: newCriterion, weight: Number(newWeight) });
                         if (ok) { setNewCriterion(""); setNewWeight("0"); }
                       }}
-                      className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                      className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Tambah
                     </button>
                   </div>
+                  {!baruBisaTambah && Number(newWeight) > 0 && (
+                    <p className="mt-2 text-xs font-semibold text-red-700">
+                      Bobot melebihi batas maksimum ({totalBobotDraft + Number(newWeight)}% / 100%). Tombol Tambah dinonaktifkan.
+                    </p>
+                  )}
                 </div>
                 {actionError && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
                 {saved && <p className="mt-3 text-sm font-semibold text-emerald-700">Perubahan kriteria tersimpan di database.</p>}
