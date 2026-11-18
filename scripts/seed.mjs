@@ -25,26 +25,42 @@ function parseCsvLine(line) {
   values.push(current); return values;
 }
 
-const csv = (await readFile(resolve("data/mahasiswa.csv"), "utf8")).replace(/^\uFEFF/, "").trim().split(/\r?\n/);
-const records = csv.slice(1).map((line) => {
-  const [npm, nama, presensi, tugas, uts] = parseCsvLine(line);
-  return { npm, nama, presensi: Number(presensi), tugas: Number(tugas), uts: Number(uts) };
+const csvLines = (await readFile(resolve("data/mahasiswa.csv"), "utf8"))
+  .replace(/^\uFEFF/, "")
+  .trim()
+  .split(/\r?\n/);
+const headers = parseCsvLine(csvLines[0]).map((header) => header.trim().toLowerCase());
+const requiredHeaders = ["npm", "nama", "presensi", "tugas", "uts", "alpa"];
+const missingHeaders = requiredHeaders.filter((header) => !headers.includes(header));
+if (missingHeaders.length) {
+  throw new Error(`Kolom wajib tidak ditemukan pada data/mahasiswa.csv: ${missingHeaders.join(", ")}`);
+}
+const columnIndex = Object.fromEntries(requiredHeaders.map((header) => [header, headers.indexOf(header)]));
+const records = csvLines.slice(1).filter((line) => line.trim()).map((line) => {
+  const values = parseCsvLine(line);
+  const value = (key) => values[columnIndex[key]]?.trim() ?? "";
+  return {
+    npm: value("npm"),
+    nama: value("nama"),
+    presensi: Number(value("presensi")),
+    tugas: Number(value("tugas")),
+    uts: Number(value("uts")),
+    alpa: Number(value("alpa")),
+  };
 });
-if (records.length !== 100 || new Set(records.map((r) => r.npm)).size !== 100) throw new Error(`Dataset harus berisi tepat 100 NPM unik. Ditemukan ${records.length}.`);
+if (records.length !== 100 || new Set(records.map((r) => r.npm)).size !== 100) {
+  throw new Error(`Dataset harus berisi tepat 100 NPM unik. Ditemukan ${records.length}.`);
+}
+for (const student of records) {
+  if (!student.npm || !student.nama || ![student.presensi, student.tugas, student.uts].every(Number.isFinite)) {
+    throw new Error(`Data nilai tidak valid untuk NPM ${student.npm || "(kosong)"}.`);
+  }
+  if (!Number.isInteger(student.alpa) || student.alpa < 0) {
+    throw new Error(`Jumlah Alpa tidak valid untuk NPM ${student.npm}: ${student.alpa}.`);
+  }
+}
 
-const isCloudDb = process.env.DB_HOST && process.env.DB_HOST !== "localhost" && process.env.DB_HOST !== "127.0.0.1";
-
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME,
-  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 5),
-  charset: "utf8mb4",
-  ...(isCloudDb ? { ssl: { minVersion: "TLSv1.2", rejectUnauthorized: true } } : {}),
-});
-
+const pool = mysql.createPool({ host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 3306), user: process.env.DB_USER, password: process.env.DB_PASSWORD || "", database: process.env.DB_NAME, connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 5), charset: "utf8mb4" });
 const conn = await pool.getConnection();
 try {
   await conn.beginTransaction();
@@ -74,8 +90,19 @@ try {
     const studentId = userResult.insertId;
     await conn.execute("INSERT INTO enrollments (course_id,student_id) VALUES (?,?) ON DUPLICATE KEY UPDATE id=id", [courseId, studentId]);
     for (const [key, score] of [["presensi", student.presensi], ["tugas", student.tugas], ["uts", student.uts]]) {
-      await conn.execute("INSERT INTO student_scores (course_id,student_id,criterion_id,score) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)", [courseId, studentId, criterionIds[key], score]);
+      await conn.execute(
+        "INSERT INTO student_scores (course_id,student_id,criterion_id,score) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",
+        [courseId, studentId, criterionIds[key], score]
+      );
     }
+
+    // Jumlah Alpa disimpan terpisah dan tidak menjadi kriteria berbobot.
+    await conn.execute(
+      `INSERT INTO student_attendance_summary (course_id,student_id,alpa_count)
+       VALUES (?,?,?)
+       ON DUPLICATE KEY UPDATE alpa_count=VALUES(alpa_count)`,
+      [courseId, studentId, student.alpa]
+    );
     imported++;
   }
   await conn.commit();
