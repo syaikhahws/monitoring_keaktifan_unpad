@@ -25,13 +25,30 @@ function EwsTable({
   criteria: Criterion[];
   onReview: (nim: string) => void;
 }) {
+  // Semua kriteria ditampilkan, termasuk kriteria yang dikecualikan.
+  // ALPA ditampilkan sebagai informasi saja dan tidak menjadi komponen skor.
+  const alpaCriterion = criteria.find(
+    (criterion) => criterion.criterion_key === "alpa"
+  );
+  const displayCriteria = [
+    ...criteria.filter((criterion) => criterion.criterion_key !== "alpa"),
+    alpaCriterion ?? {
+      id: -1,
+      criterion_key: "alpa",
+      name: "Alpa",
+      weight: 0,
+      is_active: 0,
+      sort_order: Number.MAX_SAFE_INTEGER,
+    },
+  ];
+
   return (
     <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 px-6 py-4">
         <div>
           <h2 className="font-bold">Daftar Pantauan Khusus</h2>
           <p className="text-xs text-stone-500">
-            Semua kriteria ditampilkan; hanya kriteria aktif yang dihitung ke dalam skor.
+            Status ditentukan dari skor keaktifan berdasarkan kriteria aktif. Nilai Alpa hanya ditampilkan sebagai informasi.
           </p>
         </div>
         <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">
@@ -44,7 +61,7 @@ function EwsTable({
           <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
             <tr>
               <th className="p-4">Mahasiswa</th>
-              {criteria.map((criterion) => (
+              {displayCriteria.map((criterion) => (
                 <th key={criterion.id} className="p-4">
                   {criterion.name}
                 </th>
@@ -63,8 +80,13 @@ function EwsTable({
                     {student.npm}
                   </span>
                 </td>
-                {criteria.map((criterion) => {
-                  const value = student.scores[criterion.criterion_key];
+
+                {displayCriteria.map((criterion) => {
+                  const value =
+                    criterion.criterion_key === "presensi"
+                      ? student.kehadiran
+                      : student.scores[criterion.criterion_key];
+
                   return (
                     <td key={criterion.id} className="p-4">
                       {value === null || value === undefined
@@ -73,9 +95,12 @@ function EwsTable({
                     </td>
                   );
                 })}
+
                 <td className="p-4 font-bold">{student.skor.toFixed(2)}%</td>
                 <td className="p-4">
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${badge(student.status)}`}>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${badge(student.status)}`}
+                  >
                     {student.status}
                   </span>
                 </td>
@@ -128,7 +153,12 @@ function DosenDashboardContent() {
 
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
   const course = data.course;
-  const activeCriteria = data.criteria.filter((criterion) => Number(criterion.is_active) === 1);
+  // ALPA boleh ditampilkan pada tabel, tetapi tidak pernah masuk perhitungan skor.
+  const activeCriteria = data.criteria.filter(
+    (criterion) =>
+      Number(criterion.is_active) === 1 &&
+      criterion.criterion_key !== "alpa"
+  );
   const daftarSkor = useMemo<ScoredStudent[]>(() => data.students.map((student) => {
     const available = activeCriteria.filter((criterion) => student.scores[criterion.criterion_key] !== null && student.scores[criterion.criterion_key] !== undefined);
     const totalWeight = available.reduce((sum, criterion) => sum + Number(criterion.weight), 0);
