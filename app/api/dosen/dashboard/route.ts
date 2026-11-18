@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 
 interface CourseRow extends RowDataPacket { id: number; code: string; name: string; class_name: string; schedule: string | null; calculation_method: "weighted" | "average"; active_threshold: number; attention_threshold: number; }
 interface CriterionRow extends RowDataPacket { id: number; criterion_key: string; name: string; weight: number; is_active: number; sort_order: number; }
-interface StudentRow extends RowDataPacket { id: number; npm: string; nama: string; email: string; }
+interface StudentRow extends RowDataPacket { id: number; npm: string; nama: string; email: string; alpa_count: number | null; }
 interface ScoreRow extends RowDataPacket { student_id: number; criterion_key: string; score: number | null; }
 
 export async function GET(request: Request) {
@@ -23,8 +23,12 @@ export async function GET(request: Request) {
     if (!course) return NextResponse.json({ success: true, data: { course: null, criteria: [], students: [] } });
     const [criteria] = await db.execute<CriterionRow[]>("SELECT id,criterion_key,name,weight,is_active,sort_order FROM scoring_criteria WHERE course_id=? ORDER BY sort_order,id", [course.id]);
     const [students] = await db.execute<StudentRow[]>(`
-      SELECT u.id,u.student_number AS npm,u.name AS nama,u.email
-      FROM enrollments e JOIN users u ON u.id=e.student_id
+      SELECT u.id,u.student_number AS npm,u.name AS nama,u.email,
+             sas.alpa_count AS alpa_count
+      FROM enrollments e
+      JOIN users u ON u.id=e.student_id
+      LEFT JOIN student_attendance_summary sas
+        ON sas.course_id=e.course_id AND sas.student_id=u.id
       WHERE e.course_id=? AND u.role='Mahasiswa'
       ORDER BY u.id`, [course.id]);
     const [scores] = await db.execute<ScoreRow[]>(`
@@ -37,7 +41,7 @@ export async function GET(request: Request) {
       values[row.criterion_key] = row.score === null ? null : Number(row.score);
       scoreMap.set(row.student_id, values);
     }
-    const normalizedStudents = students.map((student) => ({ ...student, scores: scoreMap.get(student.id) || {} }));
+    const normalizedStudents = students.map((student) => ({ ...student, alpa_count: student.alpa_count === null ? null : Number(student.alpa_count), scores: scoreMap.get(student.id) || {} }));
     return NextResponse.json({ success: true, data: { course, criteria: criteria.map((c) => ({ ...c, weight: Number(c.weight) })), students: normalizedStudents } });
   } catch (error) {
     console.error("Dosen dashboard database error:", error);
