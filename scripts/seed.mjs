@@ -60,7 +60,22 @@ for (const student of records) {
   }
 }
 
-const pool = mysql.createPool({ host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 3306), user: process.env.DB_USER, password: process.env.DB_PASSWORD || "", database: process.env.DB_NAME, connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 5), charset: "utf8mb4" });
+const isCloudDb =
+  process.env.DB_HOST &&
+  process.env.DB_HOST !== "localhost" &&
+  process.env.DB_HOST !== "127.0.0.1";
+
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT || 3306),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME,
+  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 5),
+  charset: "utf8mb4",
+  ...(isCloudDb ? { ssl: { minVersion: "TLSv1.2", rejectUnauthorized: true } } : {}),
+});
+
 const conn = await pool.getConnection();
 try {
   await conn.beginTransaction();
