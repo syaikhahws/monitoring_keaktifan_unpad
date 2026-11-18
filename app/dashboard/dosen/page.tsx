@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 type Menu = "ringkasan" | "kelas" | "perwalian" | "bobot" | "audit";
 type Criterion = { id: number; criterion_key: string; name: string; weight: number; is_active: number; sort_order: number };
-type Student = { id: number; npm: string; nama: string; email: string; alpa_count: number | null; scores: Record<string, number | null> };
+type Student = { id: number; npm: string; nama: string; email: string; scores: Record<string, number | null> };
 type Course = { id: number; code: string; name: string; class_name: string; schedule: string | null; calculation_method: "weighted" | "average"; active_threshold: number; attention_threshold: number };
 type DashboardData = { course: Course | null; criteria: Criterion[]; students: Student[] };
 type ScoredStudent = Student & { skor: number; status: string; kehadiran: number };
@@ -82,10 +82,8 @@ function EwsTable({
                 </td>
 
                 {displayCriteria.map((criterion) => {
-                  const isAlpa = criterion.criterion_key === "alpa";
-                  const value = isAlpa
-                    ? student.alpa_count
-                    : criterion.criterion_key === "presensi"
+                  const value =
+                    criterion.criterion_key === "presensi"
                       ? student.kehadiran
                       : student.scores[criterion.criterion_key];
 
@@ -93,9 +91,7 @@ function EwsTable({
                     <td key={criterion.id} className="p-4">
                       {value === null || value === undefined
                         ? "—"
-                        : isAlpa
-                          ? Number(value).toLocaleString("id-ID")
-                          : `${Number(value).toFixed(1)}%`}
+                        : `${Number(value).toFixed(1)}%`}
                     </td>
                   );
                 })}
