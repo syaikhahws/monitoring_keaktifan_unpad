@@ -101,7 +101,9 @@ function DashboardAdminContent() {
   const [clsCode, setClsCode] = useState("");
   const [clsName, setClsName] = useState("");
   const [clsClassName, setClsClassName] = useState("Kelas A");
-  const [clsSchedule, setClsSchedule] = useState("");
+  const [clsDay, setClsDay] = useState("Senin");
+  const [clsHour, setClsHour] = useState("08");
+  const [clsMinute, setClsMinute] = useState("00");
   const [clsSemesterId, setClsSemesterId] = useState("");
   const [clsLecturerId, setClsLecturerId] = useState("");
 
@@ -779,13 +781,14 @@ function DashboardAdminContent() {
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    const formattedSchedule = `${clsDay}, ${clsHour.padStart(2, "0")}.${clsMinute.padStart(2, "0")}`;
                     const ok = await submitMasterAction({
                       entity: "course",
                       action: "create",
                       code: clsCode,
                       name: clsName,
                       class_name: clsClassName,
-                      schedule: clsSchedule,
+                      schedule: formattedSchedule,
                       semester_id: clsSemesterId ? Number(clsSemesterId) : null,
                       lecturer_id: clsLecturerId ? Number(clsLecturerId) : null,
                     });
@@ -794,7 +797,9 @@ function DashboardAdminContent() {
                       setClsCode("");
                       setClsName("");
                       setClsClassName("Kelas A");
-                      setClsSchedule("");
+                      setClsDay("Senin");
+                      setClsHour("08");
+                      setClsMinute("00");
                     }
                   }}
                   className="mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-2 lg:grid-cols-3"
@@ -843,13 +848,43 @@ function DashboardAdminContent() {
                     placeholder="Nama Kelas (mis. Kelas A)"
                     className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
                   />
-                  <input
-                    maxLength={100}
-                    value={clsSchedule}
-                    onChange={(e) => setClsSchedule(e.target.value)}
-                    placeholder="Jadwal (mis. Senin 08.00–10.30)"
-                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
-                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      aria-label="Hari"
+                      value={clsDay}
+                      onChange={(e) => setClsDay(e.target.value)}
+                      className="rounded-lg border border-stone-300 bg-white px-2.5 py-2 text-sm"
+                    >
+                      <option value="Senin">Senin</option>
+                      <option value="Selasa">Selasa</option>
+                      <option value="Rabu">Rabu</option>
+                      <option value="Kamis">Kamis</option>
+                      <option value="Jumat">Jumat</option>
+                      <option value="Sabtu">Sabtu</option>
+                    </select>
+                    <input
+                      required
+                      aria-label="Jam"
+                      type="number"
+                      min="0"
+                      max="23"
+                      value={clsHour}
+                      onChange={(e) => setClsHour(e.target.value)}
+                      placeholder="Jam"
+                      className="rounded-lg border border-stone-300 bg-white px-2.5 py-2 text-sm"
+                    />
+                    <input
+                      required
+                      aria-label="Menit"
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={clsMinute}
+                      onChange={(e) => setClsMinute(e.target.value)}
+                      placeholder="Menit"
+                      className="rounded-lg border border-stone-300 bg-white px-2.5 py-2 text-sm"
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <select
                       value={clsSemesterId}
@@ -864,6 +899,7 @@ function DashboardAdminContent() {
                       ))}
                     </select>
                     <select
+                      required
                       value={clsLecturerId}
                       onChange={(e) => setClsLecturerId(e.target.value)}
                       className="min-w-0 flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"

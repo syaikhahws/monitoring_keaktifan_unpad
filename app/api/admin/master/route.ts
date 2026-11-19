@@ -42,13 +42,13 @@ export async function GET() {
     );
     const [courses] = await db.execute<RowDataPacket[]>(
       `SELECT c.id, c.code, c.name, c.class_name, c.schedule,
-              c.semester_id, c.lecturer_id,
+              c.semester_id, c.teacher_id AS lecturer_id,
               sem.name AS semester_name,
               u.name AS lecturer_name,
               (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id) AS total_students
        FROM courses c
        LEFT JOIN semesters sem ON sem.id = c.semester_id
-       LEFT JOIN users u ON u.id = c.lecturer_id
+       LEFT JOIN users u ON u.id = c.teacher_id
        ORDER BY c.code ASC, c.class_name ASC`
     );
 
@@ -267,19 +267,19 @@ export async function POST(request: Request) {
         const className = String(body.class_name || "").trim();
         const schedule = String(body.schedule || "").trim() || null;
         const semesterId = body.semester_id ? Number(body.semester_id) : null;
-        const lecturerId = body.lecturer_id ? Number(body.lecturer_id) : null;
+        const teacherId = body.lecturer_id ? Number(body.lecturer_id) : null;
 
-        if (!code || !name || !className) {
+        if (!code || !name || !className || !teacherId) {
           return NextResponse.json(
-            { success: false, message: "Kode mata kuliah, nama mata kuliah, dan nama kelas wajib diisi." },
+            { success: false, message: "Kode MK, nama mata kuliah, nama kelas, dan dosen pengampu wajib diisi." },
             { status: 400 }
           );
         }
 
         const [result] = await db.execute<ResultSetHeader>(
-          `INSERT INTO courses (code, name, class_name, schedule, semester_id, lecturer_id)
+          `INSERT INTO courses (code, name, class_name, schedule, semester_id, teacher_id)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [code, name, className, schedule, semesterId || null, lecturerId || null]
+          [code, name, className, schedule, semesterId || null, teacherId]
         );
 
         const courseId = result.insertId;
