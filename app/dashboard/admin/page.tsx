@@ -21,7 +21,36 @@ type UserAccount = {
   role: "Mahasiswa" | "Dosen Pengampu" | "Admin Pusat";
   fakultas: string | null;
 };
-type MasterSection = "fakultas" | "prodi" | "akun";
+type SemesterItem = {
+  id: number;
+  code: string;
+  name: string;
+  start_date: string | null;
+  end_date: string | null;
+  is_active: number;
+};
+type SubjectItem = {
+  id: number;
+  study_program_id: number | null;
+  code: string;
+  name: string;
+  credits: number;
+  prodi_code: string | null;
+  prodi_name: string | null;
+};
+type CourseItem = {
+  id: number;
+  code: string;
+  name: string;
+  class_name: string;
+  schedule: string | null;
+  semester_id: number | null;
+  lecturer_id: number | null;
+  semester_name: string | null;
+  lecturer_name: string | null;
+  total_students: number;
+};
+type MasterSection = "fakultas" | "prodi" | "matkul" | "kelas" | "semester" | "akun";
 
 function DashboardAdminContent() {
   const params = useSearchParams();
@@ -38,11 +67,14 @@ function DashboardAdminContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // State Master Data (Fakultas, Prodi, Akun & Peran)
+  // State Master Data
   const [activeMaster, setActiveMaster] = useState<MasterSection>("fakultas");
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [studyPrograms, setStudyPrograms] = useState<StudyProgram[]>([]);
   const [users, setUsers] = useState<UserAccount[]>([]);
+  const [semesters, setSemesters] = useState<SemesterItem[]>([]);
+  const [subjects, setSubjects] = useState<SubjectItem[]>([]);
+  const [courses, setCourses] = useState<CourseItem[]>([]);
   const [masterLoading, setMasterLoading] = useState(false);
   const [masterSaving, setMasterSaving] = useState(false);
   const [masterError, setMasterError] = useState("");
@@ -57,6 +89,28 @@ function DashboardAdminContent() {
   const [prodiCode, setProdiCode] = useState("");
   const [prodiName, setProdiName] = useState("");
   const [prodiLevel, setProdiLevel] = useState<"D4" | "S1" | "S2" | "S3">("S1");
+
+  // Form Mata Kuliah
+  const [subProdiId, setSubProdiId] = useState("");
+  const [subCode, setSubCode] = useState("");
+  const [subName, setSubName] = useState("");
+  const [subCredits, setSubCredits] = useState("3");
+
+  // Form Kelas
+  const [clsSubjectId, setClsSubjectId] = useState("");
+  const [clsCode, setClsCode] = useState("");
+  const [clsName, setClsName] = useState("");
+  const [clsClassName, setClsClassName] = useState("Kelas A");
+  const [clsSchedule, setClsSchedule] = useState("");
+  const [clsSemesterId, setClsSemesterId] = useState("");
+  const [clsLecturerId, setClsLecturerId] = useState("");
+
+  // Form Periode Semester
+  const [semCode, setSemCode] = useState("");
+  const [semName, setSemName] = useState("");
+  const [semStart, setSemStart] = useState("");
+  const [semEnd, setSemEnd] = useState("");
+  const [semActive, setSemActive] = useState(true);
 
   // Form Akun & Peran
   const [userSearch, setUserSearch] = useState("");
@@ -87,18 +141,32 @@ function DashboardAdminContent() {
       if (!response.ok || !payload.success) {
         throw new Error(payload.message || "Gagal memuat master data.");
       }
-      setFaculties(payload.data.faculties || []);
-      setStudyPrograms(payload.data.studyPrograms || []);
+      const nextFaculties: Faculty[] = payload.data.faculties || [];
+      const nextProdis: StudyProgram[] = payload.data.studyPrograms || [];
+      const nextSemesters: SemesterItem[] = payload.data.semesters || [];
+      setFaculties(nextFaculties);
+      setStudyPrograms(nextProdis);
       setUsers(payload.data.users || []);
-      if (payload.data.faculties?.length && !prodiFacultyId) {
-        setProdiFacultyId(String(payload.data.faculties[0].id));
+      setSemesters(nextSemesters);
+      setSubjects(payload.data.subjects || []);
+      setCourses(payload.data.courses || []);
+
+      if (nextFaculties.length && !prodiFacultyId) {
+        setProdiFacultyId(String(nextFaculties[0].id));
+      }
+      if (nextProdis.length && !subProdiId) {
+        setSubProdiId(String(nextProdis[0].id));
+      }
+      if (nextSemesters.length && !clsSemesterId) {
+        const aktifSem = nextSemesters.find((s) => Number(s.is_active) === 1) || nextSemesters[0];
+        setClsSemesterId(String(aktifSem.id));
       }
     } catch (err) {
       setMasterError(err instanceof Error ? err.message : "Gagal memuat master data.");
     } finally {
       setMasterLoading(false);
     }
-  }, [prodiFacultyId]);
+  }, [prodiFacultyId, subProdiId, clsSemesterId]);
 
   useEffect(() => {
     loadRingkasan();
@@ -135,6 +203,8 @@ function DashboardAdminContent() {
       setMasterSaving(false);
     }
   };
+
+  const dosenList = users.filter((u) => u.role === "Dosen Pengampu");
 
   const filteredUsers = users.filter((u) => {
     const q = userSearch.trim().toLowerCase();
@@ -261,32 +331,44 @@ function DashboardAdminContent() {
 
         {tab === "master" && (
           <section className="mt-6 space-y-6">
-            {/* Kartu Pilihan Modul Master Data */}
+            {/* Kartu Pilihan 6 Modul Master Data */}
             <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-extrabold">Master Data</h2>
               <p className="mt-1 text-sm text-stone-600">
                 Pilih modul master data yang ingin dikelola secara langsung pada database.
               </p>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {[
                   {
                     id: "fakultas" as const,
                     title: "Kelola Fakultas",
                     desc: `${faculties.length} fakultas terdaftar`,
-                    active: true,
                   },
                   {
                     id: "prodi" as const,
                     title: "Kelola Program Studi",
                     desc: `${studyPrograms.length} program studi terdaftar`,
-                    active: true,
+                  },
+                  {
+                    id: "matkul" as const,
+                    title: "Kelola Mata Kuliah",
+                    desc: `${subjects.length} mata kuliah terdaftar`,
+                  },
+                  {
+                    id: "kelas" as const,
+                    title: "Kelola Kelas",
+                    desc: `${courses.length} kelas aktif`,
+                  },
+                  {
+                    id: "semester" as const,
+                    title: "Kelola Periode Semester",
+                    desc: `${semesters.length} periode semester`,
                   },
                   {
                     id: "akun" as const,
                     title: "Kelola Akun & Peran",
                     desc: `${users.length} akun pengguna aktif`,
-                    active: true,
                   },
                 ].map((item) => (
                   <button
@@ -311,18 +393,6 @@ function DashboardAdminContent() {
                     </div>
                     <span className="mt-1 block text-xs font-normal text-stone-500">{item.desc}</span>
                   </button>
-                ))}
-              </div>
-
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                {["Mata Kuliah", "Kelas", "Periode Semester"].map((item) => (
-                  <div
-                    key={item}
-                    className="rounded-xl border border-dashed border-stone-200 bg-stone-50/70 p-4 text-left text-sm font-bold text-stone-500"
-                  >
-                    Kelola {item}
-                    <span className="mt-1 block text-xs font-normal text-stone-400">Tahap berikutnya</span>
-                  </div>
                 ))}
               </div>
             </div>
@@ -569,7 +639,467 @@ function DashboardAdminContent() {
               </div>
             )}
 
-            {/* 3. KELOLA AKUN & PERAN */}
+            {/* 3. KELOLA MATA KULIAH */}
+            {activeMaster === "matkul" && (
+              <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+                <h3 className="text-base font-extrabold">Kelola Mata Kuliah</h3>
+                <p className="mt-1 text-xs text-stone-500">
+                  Katalog mata kuliah kurikulum beserta jumlah SKS dan program studi pengelola.
+                </p>
+
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const ok = await submitMasterAction({
+                      entity: "subject",
+                      action: "create",
+                      study_program_id: subProdiId ? Number(subProdiId) : null,
+                      code: subCode,
+                      name: subName,
+                      credits: Number(subCredits),
+                    });
+                    if (ok) {
+                      setSubCode("");
+                      setSubName("");
+                      setSubCredits("3");
+                    }
+                  }}
+                  className="mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-[1fr_130px_1fr_90px_auto]"
+                >
+                  <select
+                    value={subProdiId}
+                    onChange={(e) => setSubProdiId(e.target.value)}
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="">-- Prodi (Opsional) --</option>
+                    {studyPrograms.map((sp) => (
+                      <option key={sp.id} value={sp.id}>
+                        {sp.code} · {sp.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    required
+                    maxLength={30}
+                    value={subCode}
+                    onChange={(e) => setSubCode(e.target.value)}
+                    placeholder="Kode (IF102)"
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm uppercase"
+                  />
+                  <input
+                    required
+                    maxLength={160}
+                    value={subName}
+                    onChange={(e) => setSubName(e.target.value)}
+                    placeholder="Nama mata kuliah"
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={subCredits}
+                    onChange={(e) => setSubCredits(e.target.value)}
+                    placeholder="SKS"
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                  <button
+                    disabled={masterSaving}
+                    className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-50"
+                  >
+                    {masterSaving ? "Menyimpan..." : "+ Matkul"}
+                  </button>
+                </form>
+
+                <div className="mt-5 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+                      <tr>
+                        <th className="p-3">Kode</th>
+                        <th className="p-3">Nama Mata Kuliah</th>
+                        <th className="p-3">SKS</th>
+                        <th className="p-3">Program Studi</th>
+                        <th className="p-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {masterLoading ? (
+                        <tr>
+                          <td colSpan={5} className="p-4 text-center text-stone-500">
+                            Memuat data mata kuliah…
+                          </td>
+                        </tr>
+                      ) : subjects.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-4 text-center text-stone-500">
+                            Belum ada data mata kuliah.
+                          </td>
+                        </tr>
+                      ) : (
+                        subjects.map((sub) => (
+                          <tr key={sub.id} className="border-t border-stone-100">
+                            <td className="p-3 font-bold text-orange-800">{sub.code}</td>
+                            <td className="p-3 font-semibold">{sub.name}</td>
+                            <td className="p-3">{sub.credits} SKS</td>
+                            <td className="p-3 text-stone-600">
+                              {sub.prodi_name ? `${sub.prodi_code} · ${sub.prodi_name}` : "Umum / Universitas"}
+                            </td>
+                            <td className="p-3 text-right">
+                              <button
+                                type="button"
+                                disabled={masterSaving}
+                                onClick={() => {
+                                  if (confirm(`Hapus mata kuliah ${sub.name}?`)) {
+                                    void submitMasterAction({ entity: "subject", action: "delete", id: sub.id });
+                                  }
+                                }}
+                                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                Hapus
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 4. KELOLA KELAS */}
+            {activeMaster === "kelas" && (
+              <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+                <h3 className="text-base font-extrabold">Kelola Kelas</h3>
+                <p className="mt-1 text-xs text-stone-500">
+                  Buka kelas perkuliahan baru, tetapkan jadwal, semester, dan dosen pengampu (otomatis menyiapkan komponen bobot standar).
+                </p>
+
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const ok = await submitMasterAction({
+                      entity: "course",
+                      action: "create",
+                      code: clsCode,
+                      name: clsName,
+                      class_name: clsClassName,
+                      schedule: clsSchedule,
+                      semester_id: clsSemesterId ? Number(clsSemesterId) : null,
+                      lecturer_id: clsLecturerId ? Number(clsLecturerId) : null,
+                    });
+                    if (ok) {
+                      setClsSubjectId("");
+                      setClsCode("");
+                      setClsName("");
+                      setClsClassName("Kelas A");
+                      setClsSchedule("");
+                    }
+                  }}
+                  className="mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-2 lg:grid-cols-3"
+                >
+                  <select
+                    value={clsSubjectId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setClsSubjectId(id);
+                      const found = subjects.find((s) => String(s.id) === id);
+                      if (found) {
+                        setClsCode(found.code);
+                        setClsName(found.name);
+                      }
+                    }}
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="">-- Isi dari Katalog Matkul (Opsional) --</option>
+                    {subjects.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.code} · {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    required
+                    maxLength={30}
+                    value={clsCode}
+                    onChange={(e) => setClsCode(e.target.value)}
+                    placeholder="Kode MK (mis. IF002)"
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm uppercase"
+                  />
+                  <input
+                    required
+                    maxLength={160}
+                    value={clsName}
+                    onChange={(e) => setClsName(e.target.value)}
+                    placeholder="Nama Mata Kuliah"
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                  <input
+                    required
+                    maxLength={50}
+                    value={clsClassName}
+                    onChange={(e) => setClsClassName(e.target.value)}
+                    placeholder="Nama Kelas (mis. Kelas A)"
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                  <input
+                    maxLength={100}
+                    value={clsSchedule}
+                    onChange={(e) => setClsSchedule(e.target.value)}
+                    placeholder="Jadwal (mis. Senin 08.00–10.30)"
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={clsSemesterId}
+                      onChange={(e) => setClsSemesterId(e.target.value)}
+                      className="min-w-0 flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">Semester</option>
+                      {semesters.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={clsLecturerId}
+                      onChange={(e) => setClsLecturerId(e.target.value)}
+                      className="min-w-0 flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">Dosen Pengampu</option>
+                      {dosenList.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      disabled={masterSaving}
+                      className="shrink-0 rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-50"
+                    >
+                      + Kelas
+                    </button>
+                  </div>
+                </form>
+
+                <div className="mt-5 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+                      <tr>
+                        <th className="p-3">Mata Kuliah</th>
+                        <th className="p-3">Kelas &amp; Jadwal</th>
+                        <th className="p-3">Semester</th>
+                        <th className="p-3">Dosen Pengampu</th>
+                        <th className="p-3">Peserta</th>
+                        <th className="p-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {masterLoading ? (
+                        <tr>
+                          <td colSpan={6} className="p-4 text-center text-stone-500">
+                            Memuat daftar kelas…
+                          </td>
+                        </tr>
+                      ) : courses.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-4 text-center text-stone-500">
+                            Belum ada kelas terdaftar.
+                          </td>
+                        </tr>
+                      ) : (
+                        courses.map((c) => (
+                          <tr key={c.id} className="border-t border-stone-100">
+                            <td className="p-3 font-semibold">
+                              <span className="block text-xs font-bold text-orange-800">{c.code}</span>
+                              {c.name}
+                            </td>
+                            <td className="p-3">
+                              <span className="font-semibold">{c.class_name}</span>
+                              <span className="block text-xs text-stone-500">{c.schedule || "Jadwal belum diatur"}</span>
+                            </td>
+                            <td className="p-3 text-xs text-stone-600">{c.semester_name || "—"}</td>
+                            <td className="p-3 text-xs font-medium text-stone-700">{c.lecturer_name || "Belum ditugaskan"}</td>
+                            <td className="p-3 text-xs">{c.total_students} mhs</td>
+                            <td className="p-3 text-right">
+                              <button
+                                type="button"
+                                disabled={masterSaving}
+                                onClick={() => {
+                                  if (confirm(`Hapus kelas ${c.name} (${c.class_name})?`)) {
+                                    void submitMasterAction({ entity: "course", action: "delete", id: c.id });
+                                  }
+                                }}
+                                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                Hapus
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 5. KELOLA PERIODE SEMESTER */}
+            {activeMaster === "semester" && (
+              <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+                <h3 className="text-base font-extrabold">Kelola Periode Semester</h3>
+                <p className="mt-1 text-xs text-stone-500">
+                  Atur periode akademik berjalan dan tentukan semester aktif pada sistem.
+                </p>
+
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const ok = await submitMasterAction({
+                      entity: "semester",
+                      action: "create",
+                      code: semCode,
+                      name: semName,
+                      start_date: semStart,
+                      end_date: semEnd,
+                      is_active: semActive,
+                    });
+                    if (ok) {
+                      setSemCode("");
+                      setSemName("");
+                      setSemStart("");
+                      setSemEnd("");
+                    }
+                  }}
+                  className="mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-[120px_1fr_150px_150px_auto]"
+                >
+                  <input
+                    required
+                    maxLength={20}
+                    value={semCode}
+                    onChange={(e) => setSemCode(e.target.value)}
+                    placeholder="Kode (20262)"
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm uppercase"
+                  />
+                  <input
+                    required
+                    maxLength={120}
+                    value={semName}
+                    onChange={(e) => setSemName(e.target.value)}
+                    placeholder="Nama (mis. Genap 2026/2027)"
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="date"
+                    value={semStart}
+                    onChange={(e) => setSemStart(e.target.value)}
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="date"
+                    value={semEnd}
+                    onChange={(e) => setSemEnd(e.target.value)}
+                    className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={semActive}
+                        onChange={(e) => setSemActive(e.target.checked)}
+                      />
+                      Aktif
+                    </label>
+                    <button
+                      disabled={masterSaving}
+                      className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-50"
+                    >
+                      + Semester
+                    </button>
+                  </div>
+                </form>
+
+                <div className="mt-5 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+                      <tr>
+                        <th className="p-3">Kode</th>
+                        <th className="p-3">Periode Semester</th>
+                        <th className="p-3">Rentang Tanggal</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {masterLoading ? (
+                        <tr>
+                          <td colSpan={5} className="p-4 text-center text-stone-500">
+                            Memuat periode semester…
+                          </td>
+                        </tr>
+                      ) : semesters.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-4 text-center text-stone-500">
+                            Belum ada periode semester.
+                          </td>
+                        </tr>
+                      ) : (
+                        semesters.map((s) => (
+                          <tr key={s.id} className="border-t border-stone-100">
+                            <td className="p-3 font-bold text-orange-800">{s.code}</td>
+                            <td className="p-3 font-semibold">{s.name}</td>
+                            <td className="p-3 text-xs text-stone-600">
+                              {s.start_date && s.end_date ? `${s.start_date} s.d. ${s.end_date}` : "—"}
+                            </td>
+                            <td className="p-3">
+                              {Number(s.is_active) === 1 ? (
+                                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                                  Semester Aktif
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-600">
+                                  Nonaktif
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right space-x-2">
+                              {Number(s.is_active) !== 1 && (
+                                <button
+                                  type="button"
+                                  disabled={masterSaving}
+                                  onClick={() =>
+                                    void submitMasterAction({ entity: "semester", action: "activate", id: s.id })
+                                  }
+                                  className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                                >
+                                  Set Aktif
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                disabled={masterSaving}
+                                onClick={() => {
+                                  if (confirm(`Hapus periode ${s.name}?`)) {
+                                    void submitMasterAction({ entity: "semester", action: "delete", id: s.id });
+                                  }
+                                }}
+                                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                Hapus
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 6. KELOLA AKUN & PERAN */}
             {activeMaster === "akun" && (
               <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -587,7 +1117,6 @@ function DashboardAdminContent() {
                   />
                 </div>
 
-                {/* Form Tambah Akun Baru */}
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
