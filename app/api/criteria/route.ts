@@ -18,6 +18,22 @@ export async function POST(request: Request) {
       const name = String(body.name || "").trim();
       const weight = Number(body.weight);
       if (!name || name.length > 120 || !Number.isFinite(weight) || weight < 0 || weight > 100) throw new Error("Nama kriteria wajib diisi dan bobot harus 0–100.");
+
+      if (Array.isArray(body.draftCriteria)) {
+        for (const item of body.draftCriteria) {
+          const id = Number(item.id);
+          const itemWeight = Number(item.weight);
+          const isActive = Number(item.is_active) === 1 ? 1 : 0;
+          if (!Number.isInteger(id) || !Number.isFinite(itemWeight) || itemWeight < 0 || itemWeight > 100) {
+            throw new Error("Bobot kriteria tidak valid.");
+          }
+          await connection.execute<ResultSetHeader>(
+            "UPDATE scoring_criteria SET weight=?, is_active=? WHERE id=? AND course_id=?",
+            [itemWeight, isActive, id, courseId]
+          );
+        }
+      }
+
       const [sumRows] = await connection.execute<RowDataPacket[]>("SELECT COALESCE(SUM(weight),0) AS total_active FROM scoring_criteria WHERE course_id=? AND is_active=1 AND criterion_key != 'alpa'", [courseId]);
       const currentTotal = Number(sumRows[0]?.total_active ?? 0);
       if (currentTotal >= 100) throw new Error("Sudah mencapai 100%, tidak dapat menambahkan bobot.");

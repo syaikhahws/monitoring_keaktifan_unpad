@@ -214,7 +214,6 @@ function DosenDashboardContent() {
     });
   }, [data.criteria, bobotDraftList]);
 
-  // Biarkan user ketik angka berapa pun (0-100) tanpa dipotong paksa
   const handleUbahBobotDraft = (criterionId: number, raw: string) => {
     setSaved(false);
     setActionError("");
@@ -225,7 +224,6 @@ function DosenDashboardContent() {
     );
   };
 
-  // Biarkan user toggle Exclude / Aktifkan secara bebas di draft
   const handleToggleDraftStatus = (criterionId: number) => {
     setSaved(false);
     setActionError("");
@@ -406,7 +404,16 @@ function DosenDashboardContent() {
                     <button
                       disabled={actionLoading || !newCriterion.trim() || Number(newWeight) <= 0 || !baruBisaTambah}
                       onClick={async () => {
-                        const ok = await saveCriterionAction({ action: "create", name: newCriterion, weight: Number(newWeight) });
+                        const ok = await saveCriterionAction({
+                          action: "create",
+                          name: newCriterion,
+                          weight: Number(newWeight),
+                          draftCriteria: bobotDraftList.map((c) => ({
+                            id: c.id,
+                            weight: Number(c.weight),
+                            is_active: Number(c.is_active),
+                          })),
+                        });
                         if (ok) { setNewCriterion(""); setNewWeight("0"); }
                       }}
                       className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
