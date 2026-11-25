@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-type Menu = "ringkasan" | "kelas" | "perwalian" | "bobot" | "audit";
+type Menu = "ringkasan" | "kelas" | "perwalian" | "bobot";
 type Criterion = { id: number; criterion_key: string; name: string; weight: number; is_active: number; sort_order: number };
 type Student = { id: number; npm: string; nama: string; email: string; alpa_count: number | null; scores: Record<string, number | null> };
 type Course = { id: number; code: string; name: string; class_name: string; schedule: string | null; calculation_method: "weighted" | "average"; active_threshold: number; attention_threshold: number };
@@ -567,7 +567,7 @@ function DosenDashboardContent() {
   const rataRata = daftarSkor.length ? daftarSkor.reduce((sum, student) => sum + student.skor, 0) / daftarSkor.length : 0;
   const nav = mode === "wali"
     ? ([ ["ringkasan", "Analisis Angkatan", "▦"] ] as const)
-    : ([ ["ringkasan", "Ringkasan", "▦"], ["kelas", "Kelas & Presensi", "▤"], ["perwalian", "Perwalian & EWS", "◎"], ["bobot", "Bobot Keaktifan", "⚖"], ["audit", "Kesiapan Audit", "✓"] ] as const);
+    : ([ ["ringkasan", "Ringkasan", "▦"], ["kelas", "Kelas & Presensi", "▤"], ["perwalian", "Perwalian & EWS", "◎"], ["bobot", "Bobot Keaktifan", "⚖"] ] as const);
 
   const bobotDraftList = useMemo(
     () => draftCriteria.filter((c) => c.criterion_key !== "alpa"),
@@ -653,7 +653,7 @@ function DosenDashboardContent() {
               <>
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   {[
-                    [mode === "pengampu" ? "Kelas diampu" : "Mahasiswa wali", `${course.class_name} · ${daftarSkor.length} mahasiswa`, "text-stone-900"],
+                    ["Kelas diampu", `${course.class_name} · ${daftarSkor.length} mahasiswa`, "text-stone-900"],
                     ["Rata-rata skor", `${rataRata.toFixed(2)}%`, "text-orange-700"],
                     ["Mahasiswa aktif", `${aktif} orang`, "text-emerald-700"],
                     ["Perlu tindak lanjut", `${berisiko.length} orang`, "text-red-700"],
@@ -893,8 +893,6 @@ function DosenDashboardContent() {
                 <p className="mt-4 text-xs text-stone-500">Mata kuliah: {course.code} · {course.name} ({course.class_name})</p>
               </section>
             )}
-
-            {menu === "audit" && <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-extrabold">Kesiapan Refactoring & Audit</h2><p className="mt-1 text-sm text-stone-600">Daftar pekerjaan backend yang sengaja belum diubah dalam revisi frontend ini.</p><div className="mt-5 space-y-3">{[["1", "Autentikasi & RBAC", "Session aman, middleware, dan pembatasan data berdasarkan peran."], ["2", "Skema database", "Entitas kelas, pertemuan, presensi, skor, parameter, notifikasi, dan audit log."], ["3", "Sumber data", "Ganti data/aturan hard-coded dengan query dan service domain."], ["4", "Pemisahan peran", "Hak Dosen Pengampu dan Dosen Wali divalidasi di server."], ["5", "API domain", "Endpoint kelas, QR, scan, koreksi, skor, dan EWS."], ["6", "Keamanan", "Hash password, validasi input, HTTPS, pembatasan rate, dan log audit."], ["7", "Pengujian FSD", "Test AC-001 s.d. AC-015 serta integrasi alur presensi."]].map(([number, title, detail]) => <div key={number} className="flex gap-4 rounded-xl border border-stone-200 p-4"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-stone-900 text-xs font-bold text-white">{number}</span><div><h3 className="font-bold">{title}</h3><p className="mt-1 text-sm text-stone-600">{detail}</p></div><span className="ml-auto h-fit rounded-full bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-800">Tahap backend</span></div>)}</div></section>}
           </>}
         </main>
       </div>
