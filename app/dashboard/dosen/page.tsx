@@ -612,14 +612,6 @@ function DosenDashboardContent() {
                   ))}
                 </div>
 
-                {mode === "wali" && (
-                  <WaliAnalyticsCharts
-                    students={daftarSkor}
-                    criteria={data.criteria}
-                    activeThreshold={Number(course.active_threshold)}
-                  />
-                )}
-
                 <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
                   <div className="flex flex-wrap justify-between gap-3">
                     <div>
