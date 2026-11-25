@@ -21,9 +21,9 @@ export async function GET() {
        ORDER BY f.code ASC, sp.code ASC`
     );
     const [users] = await db.execute<RowDataPacket[]>(
-      `SELECT id, name, email, student_number, role, fakultas
+      `SELECT id, name, email, student_number, role, fakultas, angkatan
        FROM users
-       ORDER BY FIELD(role, 'Admin Pusat', 'Dosen Pengampu', 'Mahasiswa'), id ASC`
+       ORDER BY FIELD(role, 'Admin Pusat', 'Dosen Pengampu', 'Mahasiswa'), angkatan ASC, id ASC`
     );
     const [semesters] = await db.execute<RowDataPacket[]>(
       `SELECT id, code, name,
@@ -52,9 +52,23 @@ export async function GET() {
        ORDER BY c.code ASC, c.class_name ASC`
     );
 
+    const [advisorAssignments] = await db.execute<RowDataPacket[]>(
+      `SELECT
+         sa.student_id,
+         sa.advisor_id,
+         student.name AS student_name,
+         student.student_number,
+         student.angkatan,
+         advisor.name AS advisor_name
+       FROM student_advisors sa
+       JOIN users student ON student.id = sa.student_id AND student.role = 'Mahasiswa'
+       JOIN users advisor ON advisor.id = sa.advisor_id AND advisor.role = 'Dosen Pengampu'
+       ORDER BY student.angkatan ASC, student.student_number ASC, student.id ASC`
+    );
+
     return NextResponse.json({
       success: true,
-      data: { faculties, studyPrograms, users, semesters, subjects, courses },
+      data: { faculties, studyPrograms, users, semesters, subjects, courses, advisorAssignments },
     });
   } catch (error) {
     console.error("Admin master GET error:", error);
@@ -74,6 +88,45 @@ export async function POST(request: Request) {
     const body = await request.json();
     const entity = String(body.entity || "");
     const action = String(body.action || "");
+
+    // Kelola hubungan mahasiswa dengan dosen wali.
+    if (entity === "advisor_assignment") {
+      const studentId = Number(body.student_id);
+      if (!Number.isInteger(studentId) || studentId <= 0) {
+        return NextResponse.json({ success: false, message: "Mahasiswa tidak valid." }, { status: 400 });
+      }
+
+      if (action === "assign") {
+        const advisorId = Number(body.advisor_id);
+        if (!Number.isInteger(advisorId) || advisorId <= 0) {
+          return NextResponse.json({ success: false, message: "Dosen wali tidak valid." }, { status: 400 });
+        }
+        const [accounts] = await db.execute<RowDataPacket[]>(
+          "SELECT id, role FROM users WHERE id IN (?, ?)",
+          [studentId, advisorId]
+        );
+        const student = accounts.find((account) => Number(account.id) === studentId);
+        const advisor = accounts.find((account) => Number(account.id) === advisorId);
+        if (!student || student.role !== "Mahasiswa" || !advisor || advisor.role !== "Dosen Pengampu") {
+          return NextResponse.json({ success: false, message: "Pastikan akun mahasiswa dan dosen wali sesuai perannya." }, { status: 400 });
+        }
+        await db.execute<ResultSetHeader>(
+          `INSERT INTO student_advisors (student_id, advisor_id)
+           VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE advisor_id = VALUES(advisor_id)`,
+          [studentId, advisorId]
+        );
+        return NextResponse.json({ success: true, message: "Dosen wali mahasiswa berhasil diperbarui." });
+      }
+
+      if (action === "unassign") {
+        await db.execute<ResultSetHeader>(
+          "DELETE FROM student_advisors WHERE student_id = ?",
+          [studentId]
+        );
+        return NextResponse.json({ success: true, message: "Penugasan dosen wali berhasil dihapus." });
+      }
+    }
 
     // 1. KELOLA FAKULTAS
     if (entity === "faculty") {

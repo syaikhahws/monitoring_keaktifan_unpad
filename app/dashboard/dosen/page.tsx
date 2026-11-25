@@ -9,6 +9,18 @@ type Student = { id: number; npm: string; nama: string; email: string; alpa_coun
 type Course = { id: number; code: string; name: string; class_name: string; schedule: string | null; calculation_method: "weighted" | "average"; active_threshold: number; attention_threshold: number };
 type DashboardData = { course: Course | null; criteria: Criterion[]; students: Student[] };
 type ScoredStudent = Student & { skor: number; status: string; kehadiran: number };
+type WaliStudent = {
+  id: number;
+  npm: string | null;
+  nama: string;
+  email: string;
+  angkatan: number | null;
+  total_courses: number;
+  presensi_avg: number | null;
+  tugas_avg: number | null;
+  uts_avg: number | null;
+  alpa_count: number;
+};
 
 function badge(status: string) {
   if (status === "Aktif") return "bg-emerald-100 text-emerald-800";
@@ -302,6 +314,121 @@ function EwsTable({
   );
 }
 
+function WaliCohortDashboard({ students }: { students: WaliStudent[] }) {
+  const average = (values: Array<number | null>) => {
+    const valid = values.filter((value): value is number => value !== null && Number.isFinite(value));
+    return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null;
+  };
+  const grouped = new Map<string, WaliStudent[]>();
+  for (const student of students) {
+    const cohort = student.angkatan === null ? "Tidak diketahui" : String(student.angkatan);
+    grouped.set(cohort, [...(grouped.get(cohort) || []), student]);
+  }
+  const cohorts = [...grouped.entries()].sort((a, b) => {
+    if (a[0] === "Tidak diketahui") return 1;
+    if (b[0] === "Tidak diketahui") return -1;
+    return Number(a[0]) - Number(b[0]);
+  }).map(([angkatan, members]) => ({
+    angkatan,
+    total: members.length,
+    presensi: average(members.map((student) => student.presensi_avg)),
+    tugas: average(members.map((student) => student.tugas_avg)),
+    uts: average(members.map((student) => student.uts_avg)),
+    alpa: average(members.map((student) => student.alpa_count)),
+  }));
+  const fmt = (value: number | null) => value === null ? "—" : `${value.toFixed(1)}%`;
+  const allPresensi = average(students.map((student) => student.presensi_avg));
+  const allTugas = average(students.map((student) => student.tugas_avg));
+  const allUts = average(students.map((student) => student.uts_avg));
+
+  return (
+    <section className="space-y-5">
+      <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-orange-700">Dosen Wali</p>
+            <h2 className="mt-1 text-xl font-extrabold">Analisis Keaktifan Anak Wali per Angkatan</h2>
+            <p className="mt-1 text-sm text-stone-600">Nilai dirata-ratakan dari seluruh mata kuliah yang diikuti setiap mahasiswa. Alpa ditampilkan terpisah dan tidak masuk perhitungan skor.</p>
+          </div>
+          <span className="rounded-full bg-stone-100 px-3 py-1.5 text-xs font-bold text-stone-700">{students.length} mahasiswa bimbingan</span>
+        </div>
+        {students.length === 0 ? (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Belum ada mahasiswa yang ditugaskan kepada akun dosen wali ini.</div>
+        ) : (
+          <>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ["Mahasiswa bimbingan", String(students.length)],
+                ["Angkatan terpantau", String(cohorts.length)],
+                ["Rata-rata Presensi", fmt(allPresensi)],
+                ["Rata-rata Tugas / UTS", `${fmt(allTugas)} / ${fmt(allUts)}`],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-stone-500">{label}</p>
+                  <p className="mt-2 text-xl font-extrabold text-stone-900">{value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6">
+              <h3 className="font-bold">Perbandingan rata-rata per angkatan</h3>
+              <p className="mt-1 text-xs text-stone-500">Perbandingan komponen Presensi, Tugas, dan UTS berdasarkan angkatan mahasiswa bimbingan.</p>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[680px] text-left text-sm">
+                  <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+                    <tr><th className="p-3">Angkatan</th><th className="p-3">Mahasiswa</th><th className="p-3">Presensi</th><th className="p-3">Tugas</th><th className="p-3">UTS</th><th className="p-3">Rata-rata Alpa</th></tr>
+                  </thead>
+                  <tbody>
+                    {cohorts.map((cohort) => (
+                      <tr key={cohort.angkatan} className="border-t border-stone-100">
+                        <td className="p-3 font-bold">{cohort.angkatan}</td>
+                        <td className="p-3">{cohort.total}</td>
+                        <td className="p-3 font-semibold">{fmt(cohort.presensi)}</td>
+                        <td className="p-3 font-semibold">{fmt(cohort.tugas)}</td>
+                        <td className="p-3 font-semibold">{fmt(cohort.uts)}</td>
+                        <td className="p-3">{cohort.alpa === null ? "—" : cohort.alpa.toFixed(1)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+        <div className="border-b border-stone-100 px-6 py-4">
+          <h3 className="font-bold">Rincian Performa Setiap Mahasiswa</h3>
+          <p className="mt-1 text-xs text-stone-500">Nilai adalah rata-rata lintas semua mata kuliah mahasiswa; jumlah Alpa adalah total lintas mata kuliah.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[850px] text-left text-sm">
+            <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+              <tr><th className="p-3">Mahasiswa</th><th className="p-3">Angkatan</th><th className="p-3">Mata Kuliah</th><th className="p-3">Presensi</th><th className="p-3">Tugas</th><th className="p-3">UTS</th><th className="p-3">Jumlah Alpa</th></tr>
+            </thead>
+            <tbody>
+              {students.length === 0 ? (
+                <tr><td colSpan={7} className="p-5 text-center text-stone-500">Tidak ada data mahasiswa wali.</td></tr>
+              ) : students.map((student) => (
+                <tr key={student.id} className="border-t border-stone-100">
+                  <td className="p-3 font-semibold">{student.nama}<span className="block text-xs font-normal text-stone-500">{student.npm || "NPM tidak tersedia"}</span></td>
+                  <td className="p-3">{student.angkatan ?? "—"}</td>
+                  <td className="p-3">{student.total_courses}</td>
+                  <td className="p-3">{fmt(student.presensi_avg)}</td>
+                  <td className="p-3">{fmt(student.tugas_avg)}</td>
+                  <td className="p-3">{fmt(student.uts_avg)}</td>
+                  <td className="p-3 font-bold">{student.alpa_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function DosenDashboardContent() {
   const params = useSearchParams();
   const nama = params.get("nama") || "Dosen Pengampu";
@@ -309,6 +436,9 @@ function DosenDashboardContent() {
   const [menu, setMenu] = useState<Menu>("ringkasan");
   const [mode, setMode] = useState<"pengampu" | "wali">("pengampu");
   const [data, setData] = useState<DashboardData>({ course: null, criteria: [], students: [] });
+  const [waliStudents, setWaliStudents] = useState<WaliStudent[]>([]);
+  const [waliLoading, setWaliLoading] = useState(false);
+  const [waliError, setWaliError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -322,6 +452,7 @@ function DosenDashboardContent() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const loadDashboard = useCallback(async () => {
+    setLoading(true);
     if (!dosenId) { setError("ID dosen tidak tersedia. Silakan login kembali."); setLoading(false); return; }
     try {
       const response = await fetch(`/api/dosen/dashboard?dosen_id=${encodeURIComponent(dosenId)}`, { cache: "no-store" });
@@ -340,7 +471,26 @@ function DosenDashboardContent() {
     finally { setLoading(false); }
   }, [dosenId]);
 
-  useEffect(() => { void loadDashboard(); }, [loadDashboard]);
+  const loadWaliDashboard = useCallback(async () => {
+    if (!dosenId) { setWaliError("ID dosen tidak tersedia. Silakan login kembali."); return; }
+    setWaliLoading(true);
+    setWaliError("");
+    try {
+      const response = await fetch(`/api/dosen/dashboard?dosen_id=${encodeURIComponent(dosenId)}&mode=wali`, { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload.message || "Gagal memuat data perwalian.");
+      setWaliStudents(payload.data.students || []);
+    } catch (err) {
+      setWaliError(err instanceof Error ? err.message : "Gagal memuat data perwalian.");
+    } finally {
+      setWaliLoading(false);
+    }
+  }, [dosenId]);
+
+  useEffect(() => {
+    if (mode === "pengampu") void loadDashboard();
+    else void loadWaliDashboard();
+  }, [mode, loadDashboard, loadWaliDashboard]);
   const course = data.course;
   // ALPA boleh ditampilkan pada tabel, tetapi tidak pernah masuk perhitungan skor.
   const activeCriteria = data.criteria.filter(
@@ -362,7 +512,9 @@ function DosenDashboardContent() {
   const berisiko = daftarSkor.filter((student) => student.status !== "Aktif");
   const aktif = daftarSkor.filter((student) => student.status === "Aktif").length;
   const rataRata = daftarSkor.length ? daftarSkor.reduce((sum, student) => sum + student.skor, 0) / daftarSkor.length : 0;
-  const nav = [["ringkasan", "Ringkasan", "▦"], ["kelas", "Kelas & Presensi", "▤"], ["perwalian", "Perwalian & EWS", "◎"], ["bobot", "Bobot Keaktifan", "⚖"], ["audit", "Kesiapan Audit", "✓"]] as const;
+  const nav = mode === "wali"
+    ? ([ ["ringkasan", "Analisis Angkatan", "▦"] ] as const)
+    : ([ ["ringkasan", "Ringkasan", "▦"], ["kelas", "Kelas & Presensi", "▤"], ["perwalian", "Perwalian & EWS", "◎"], ["bobot", "Bobot Keaktifan", "⚖"], ["audit", "Kesiapan Audit", "✓"] ] as const);
 
   const bobotDraftList = useMemo(
     () => draftCriteria.filter((c) => c.criterion_key !== "alpa"),
@@ -432,11 +584,18 @@ function DosenDashboardContent() {
         <aside className="hidden w-60 shrink-0 md:block"><div className="sticky top-24 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm"><p className="px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-wider text-stone-400">Area kerja dosen</p>{nav.map(([id, label, icon]) => <button key={id} onClick={() => setMenu(id)} className={`mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${menu === id ? "bg-orange-600 text-white shadow-sm" : "text-stone-700 hover:bg-orange-50"}`}><span className="text-base">{icon}</span>{label}</button>)}<div className="mt-4 rounded-xl bg-stone-50 p-3 text-xs leading-5 text-stone-600"><p className="font-bold text-stone-800">Cakupan akses</p>Tampilan ini membedakan data kelas yang diampu dan mahasiswa perwalian.</div></div></aside>
         <main className="min-w-0 flex-1 space-y-6">
           <div className="md:hidden"><select value={menu} onChange={(e) => setMenu(e.target.value as Menu)} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-semibold">{nav.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></div>
-          <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Dashboard dosen</p><h1 className="mt-1 text-2xl font-extrabold tracking-tight">{mode === "pengampu" ? "Pemantauan Kelas" : "Pemantauan Perwalian"}</h1><p className="mt-1 text-sm text-stone-600">Data mahasiswa dan nilai diambil dari database.</p></div><div className="rounded-xl border border-stone-200 bg-white p-1 shadow-sm"><button onClick={() => setMode("pengampu")} className={`rounded-lg px-3 py-2 text-xs font-bold ${mode === "pengampu" ? "bg-stone-900 text-white" : "text-stone-600"}`}>Dosen Pengampu</button><button onClick={() => setMode("wali")} className={`rounded-lg px-3 py-2 text-xs font-bold ${mode === "wali" ? "bg-stone-900 text-white" : "text-stone-600"}`}>Dosen Wali</button></div></div>
-          {loading && <section className="rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-600">Memuat data dari database…</section>}
-          {error && <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</section>}
-          {!loading && !error && !course && <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Belum ada mata kuliah yang ditugaskan kepada akun dosen ini. Periksa konfigurasi course pada database.</section>}
-          {!loading && !error && course && <>
+          <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Dashboard dosen</p><h1 className="mt-1 text-2xl font-extrabold tracking-tight">{mode === "pengampu" ? "Pemantauan Kelas" : "Pemantauan Perwalian"}</h1><p className="mt-1 text-sm text-stone-600">Data mahasiswa dan nilai diambil dari database.</p></div><div className="rounded-xl border border-stone-200 bg-white p-1 shadow-sm"><button onClick={() => { setMode("pengampu"); setMenu("ringkasan"); }} className={`rounded-lg px-3 py-2 text-xs font-bold ${mode === "pengampu" ? "bg-stone-900 text-white" : "text-stone-600"}`}>Dosen Pengampu</button><button onClick={() => { setMode("wali"); setMenu("ringkasan"); }} className={`rounded-lg px-3 py-2 text-xs font-bold ${mode === "wali" ? "bg-stone-900 text-white" : "text-stone-600"}`}>Dosen Wali</button></div></div>
+          {mode === "pengampu" && loading && <section className="rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-600">Memuat data dari database…</section>}
+          {mode === "pengampu" && error && <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</section>}
+          {mode === "pengampu" && !loading && !error && !course && <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Belum ada mata kuliah yang ditugaskan kepada akun dosen ini. Periksa konfigurasi course pada database.</section>}
+          {mode === "wali" && (
+            <>
+              {waliLoading && <section className="rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-600">Memuat data mahasiswa perwalian dari database...</section>}
+              {waliError && <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{waliError}</section>}
+              {!waliLoading && !waliError && <WaliCohortDashboard students={waliStudents} />}
+            </>
+          )}
+          {mode === "pengampu" && !loading && !error && course && <>
             {menu === "ringkasan" && (
               <>
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

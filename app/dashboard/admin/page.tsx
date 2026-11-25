@@ -20,6 +20,15 @@ type UserAccount = {
   student_number: string | null;
   role: "Mahasiswa" | "Dosen Pengampu" | "Admin Pusat";
   fakultas: string | null;
+  angkatan?: number | string | null;
+};
+type AdvisorAssignment = {
+  student_id: number;
+  advisor_id: number;
+  student_name: string;
+  student_number: string | null;
+  angkatan: number | string | null;
+  advisor_name: string;
 };
 type SemesterItem = {
   id: number;
@@ -50,7 +59,7 @@ type CourseItem = {
   lecturer_name: string | null;
   total_students: number;
 };
-type MasterSection = "fakultas" | "prodi" | "matkul" | "kelas" | "semester" | "akun";
+type MasterSection = "fakultas" | "prodi" | "matkul" | "kelas" | "semester" | "akun" | "perwalian";
 
 function DashboardAdminContent() {
   const params = useSearchParams();
@@ -72,6 +81,9 @@ function DashboardAdminContent() {
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [studyPrograms, setStudyPrograms] = useState<StudyProgram[]>([]);
   const [users, setUsers] = useState<UserAccount[]>([]);
+  const [advisorAssignments, setAdvisorAssignments] = useState<AdvisorAssignment[]>([]);
+  const [assignmentStudentId, setAssignmentStudentId] = useState("");
+  const [assignmentAdvisorId, setAssignmentAdvisorId] = useState("");
   const [semesters, setSemesters] = useState<SemesterItem[]>([]);
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [courses, setCourses] = useState<CourseItem[]>([]);
@@ -149,6 +161,7 @@ function DashboardAdminContent() {
       setFaculties(nextFaculties);
       setStudyPrograms(nextProdis);
       setUsers(payload.data.users || []);
+      setAdvisorAssignments(payload.data.advisorAssignments || []);
       setSemesters(nextSemesters);
       setSubjects(payload.data.subjects || []);
       setCourses(payload.data.courses || []);
@@ -371,6 +384,11 @@ function DashboardAdminContent() {
                     id: "akun" as const,
                     title: "Kelola Akun & Peran",
                     desc: `${users.length} akun pengguna aktif`,
+                  },
+                  {
+                    id: "perwalian" as const,
+                    title: "Kelola Dosen Wali",
+                    desc: `${advisorAssignments.length} penugasan mahasiswa`,
                   },
                 ].map((item) => (
                   <button
@@ -1132,6 +1150,122 @@ function DashboardAdminContent() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* 7. KELOLA DOSEN WALI */}
+            {activeMaster === "perwalian" && (
+              <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+                <h3 className="text-base font-extrabold">Penugasan Dosen Wali</h3>
+                <p className="mt-1 text-xs leading-5 text-stone-500">
+                  Tetapkan satu dosen wali untuk setiap mahasiswa. Data ini menjadi dasar pembatasan mahasiswa yang tampil pada mode Dosen Wali.
+                </p>
+
+                <form
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    if (!assignmentStudentId || !assignmentAdvisorId) return;
+                    await submitMasterAction({
+                      entity: "advisor_assignment",
+                      action: "assign",
+                      student_id: Number(assignmentStudentId),
+                      advisor_id: Number(assignmentAdvisorId),
+                    });
+                  }}
+                  className="mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-[1fr_1fr_auto]"
+                >
+                  <select
+                    required
+                    value={assignmentStudentId}
+                    onChange={(event) => setAssignmentStudentId(event.target.value)}
+                    className="min-w-0 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="">Pilih mahasiswa</option>
+                    {users.filter((user) => user.role === "Mahasiswa").map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.name}{student.student_number ? ` · ${student.student_number}` : ""}{student.angkatan ? ` · ${student.angkatan}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    required
+                    value={assignmentAdvisorId}
+                    onChange={(event) => setAssignmentAdvisorId(event.target.value)}
+                    className="min-w-0 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="">Pilih dosen wali</option>
+                    {dosenList.map((advisor) => (
+                      <option key={advisor.id} value={advisor.id}>{advisor.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={masterSaving || !assignmentStudentId || !assignmentAdvisorId}
+                    className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-50"
+                  >
+                    {masterSaving ? "Menyimpan..." : "Simpan Penugasan"}
+                  </button>
+                </form>
+
+                <div className="mt-5 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+                      <tr>
+                        <th className="p-3">Mahasiswa</th>
+                        <th className="p-3">Angkatan</th>
+                        <th className="p-3">Dosen Wali</th>
+                        <th className="p-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {masterLoading ? (
+                        <tr><td colSpan={4} className="p-4 text-center text-stone-500">Memuat penugasan...</td></tr>
+                      ) : advisorAssignments.length === 0 ? (
+                        <tr><td colSpan={4} className="p-4 text-center text-stone-500">Belum ada penugasan dosen wali.</td></tr>
+                      ) : advisorAssignments.map((assignment) => (
+                        <tr key={assignment.student_id} className="border-t border-stone-100">
+                          <td className="p-3 font-semibold">
+                            {assignment.student_name}
+                            <span className="block text-xs font-normal text-stone-500">{assignment.student_number || "NPM tidak tersedia"}</span>
+                          </td>
+                          <td className="p-3">{assignment.angkatan ?? "—"}</td>
+                          <td className="p-3">
+                            <select
+                              disabled={masterSaving}
+                              value={String(assignment.advisor_id)}
+                              onChange={(event) => void submitMasterAction({
+                                entity: "advisor_assignment",
+                                action: "assign",
+                                student_id: assignment.student_id,
+                                advisor_id: Number(event.target.value),
+                              })}
+                              className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs"
+                            >
+                              {dosenList.map((advisor) => (
+                                <option key={advisor.id} value={advisor.id}>{advisor.name}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              disabled={masterSaving}
+                              onClick={() => {
+                                if (confirm(`Hapus penugasan dosen wali untuk ${assignment.student_name}?`)) {
+                                  void submitMasterAction({ entity: "advisor_assignment", action: "unassign", student_id: assignment.student_id });
+                                }
+                              }}
+                              className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              Hapus
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-xs text-stone-500">Total mahasiswa dengan dosen wali: {advisorAssignments.length}</p>
               </div>
             )}
 
