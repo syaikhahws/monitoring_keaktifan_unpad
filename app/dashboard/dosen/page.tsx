@@ -370,6 +370,59 @@ function WaliCohortDashboard({ students }: { students: WaliStudent[] }) {
               ))}
             </div>
 
+            <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-orange-700">Visualisasi Performa</p>
+                  <h3 className="mt-1 font-bold text-stone-900">Perbandingan Presensi, Tugas, dan UTS per Mahasiswa</h3>
+                  <p className="mt-1 text-xs text-stone-500">Setiap batang menunjukkan rata-rata nilai mahasiswa dari seluruh mata kuliah yang diikuti.</p>
+                </div>
+                <div className="flex flex-wrap gap-3 text-xs font-semibold text-stone-600">
+                  <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-orange-500" />Presensi</span>
+                  <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-blue-500" />Tugas</span>
+                  <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />UTS</span>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                {students.map((student) => {
+                  const metrics = [
+                    { label: "Presensi", value: student.presensi_avg, color: "bg-orange-500" },
+                    { label: "Tugas", value: student.tugas_avg, color: "bg-blue-500" },
+                    { label: "UTS", value: student.uts_avg, color: "bg-emerald-500" },
+                  ];
+                  return (
+                    <div key={student.id} className="rounded-xl border border-stone-100 bg-stone-50/70 p-4">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-bold text-stone-900">{student.nama}</p>
+                          <p className="text-[11px] text-stone-500">{student.npm || "NPM tidak tersedia"} · Angkatan {student.angkatan ?? "—"}</p>
+                        </div>
+                        <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">Alpa: {student.alpa_count}</span>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        {metrics.map((metric) => {
+                          const valid = metric.value !== null && Number.isFinite(metric.value);
+                          const amount = valid ? Math.max(0, Math.min(100, Number(metric.value))) : 0;
+                          return (
+                            <div key={metric.label}>
+                              <div className="mb-1 flex items-center justify-between text-xs">
+                                <span className="font-semibold text-stone-600">{metric.label}</span>
+                                <span className="font-bold text-stone-900">{valid ? `${amount.toFixed(1)}%` : "—"}</span>
+                              </div>
+                              <div className="h-2.5 overflow-hidden rounded-full bg-stone-200">
+                                <div className={`h-full rounded-full ${metric.color}`} style={{ width: `${amount}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
             <div className="mt-6">
               <h3 className="font-bold">Perbandingan rata-rata per angkatan</h3>
               <p className="mt-1 text-xs text-stone-500">Perbandingan komponen Presensi, Tugas, dan UTS berdasarkan angkatan mahasiswa bimbingan.</p>
